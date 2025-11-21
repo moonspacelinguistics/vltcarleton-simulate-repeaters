@@ -1,2 +1,8 @@
-# dissertation
-This repo hosts all the codes and data for my dissertation, including codes for data preprocessing pipeline, word difficulty logit extraction, machine learning, and analyses outcome. This will also be linked to OSF once the project is complete.
+# Using machine learning techniques to solve data sparsity issues with L2 word learnability estimates
+This repo hosts all the codes and data for my dissertation, including codes for data preprocessing pipeline for the human observations, word difficulty logit estimation, machine learning, and analyses outcome. This will also be linked to OSF once the project is complete. 
+## 1. Data preprocessing pipeline
+The human observations are extracted from a large online database from a vocabulary testing webside (https://vlt.carleton.ca/). In order to convert the raw files into a usable format, the files have to be filtered for invalid responses and then concatenated into a large dataframe in .csv. The codes for preprocessing is written in RMarkdown.
+## 2. Word difficulty logit extraction
+As with any online databases, the data matrix tends to be very sparsely populated (>50% missingness). To derive the word difficulty logits from the learner responses, IRT modelling is used to estimate the word difficulty. The codes are written in RMarkdown.
+## 3. Neural network 
+The model is a simple supervised neural network is written in base Python without packages. Since machine learning techniques tend to function as "blackboxes" aimed at prediction, the goal here is to produce a model that is as interpretable as possible. Thus, the input patterns are the GloVe word embeddings (which uses weighted least squares regression to obtain word vectors that capture co-occurence likelihood within a context window), and the teaching pattern are the word difficulty bands extracted from the human observations in (2). 
