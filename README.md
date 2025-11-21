@@ -1,4 +1,4 @@
-# Using machine learning techniques to solve data sparsity issues with L2 word learnability estimates
+# Using machine learning techniques to solve data sparsity issues for deriving L2 word learnability estimates
 This repo hosts all the codes and data for my dissertation, including codes for data preprocessing pipeline for the human observations, word difficulty logit estimation, neural network model, and analyses outcome. This will also be linked to OSF once the project is complete. 
 ## 1. Data preprocessing pipeline
 The human observations are extracted from a large online database from a vocabulary testing webside (https://vlt.carleton.ca/). In order to convert the raw files into a usable format, the files have to be filtered for invalid responses and then concatenated into a large dataframe in .csv. The codes for preprocessing is written in R and RMarkdown.
