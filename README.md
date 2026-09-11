@@ -23,10 +23,10 @@ A copy of this repository and the resulting wordlist is also archived at
 ## Contents
 
 ```
-├── 01_preprocessing/    # raw platform exports → analysis-ready .csv
-├── 02_simulation/       # sparse-matrix simulation with known parameters
-├── 03_estimation/       # bigIRT calibration
-└── 04_wordlist/         # 2,999 flemmas with difficulty estimates (.xlsx)
+├── appendix_a-preprocessing.Rmd/    # raw platform exports → analysis-ready .csv
+├── appendix_b-demo.Rmd/             # sparse-matrix simulation with known parameters
+├── appendix_c-irt.Rmd/              # bigIRT calibration
+└── appendix_d-flemmas.xls/          # 2,999 flemmas with difficulty estimates (.xlsx)
 ```
 
 ## Requirements
