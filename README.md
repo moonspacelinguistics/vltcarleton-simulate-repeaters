@@ -56,22 +56,35 @@ with average reaction times that fell outside of the 3-to-14-second range.
 Unlinked items that form fragmented “islands” of observations that could lead to 
 biased estimates were also removed prior to running bigIRT on the dataset.
 
-Run: `01_preprocessing/<filename>.Rmd`
-
-For transparency and analytical integrity, the implementation details are viewable in .Rmd.
+For transparency and analytical integrity, the implementation details are viewable 
+in `appendix_a-preprocessing.html`.
 
 ## 2. Simulation with repeat test-takers
 
-Simulates a response matrix with known item and person parameters at 99% missingness 
-with repeat test-takers contributing approximately 30% of all observations. 
-The dichotomous observations were drawn from a probability matrix 
+Three dataframes were simulated: 
+- “DF”: the original dataframe with “test-takers” (noriginal = 4000) who
+  answered all “items” (k = 2000)
+- “DF_missing”: a copy of DF, except that each “test-taker” responded only to 20
+  out of the 2000 “items”, which was created by randomly removing observations from DF.
+  This creates a sparse dataset with 99% missing observations.
+- "DF_repeat": created by first duplicating DF_missing, and then have 10% of the
+  “test-takers” chosen randomly for duplication between one and five times. This
+  results in a dataframe that has altogether nrepeat = 5153 rows of responses, of
+  which 1553 of the rows (making up 30.1% of the observations) were responses from
+  the same 400 “individuals” who “retook the same test” for two to six times.
+
+The dichotomous observations for DF were drawn from a probability matrix 
 described by the 1-IRT (or Rasch) model
+
+```math
 P(X_{ni} = 1 \mid \theta_n, \beta_i) = \frac{\exp(\theta_n - \beta_i)}{1 + \exp(\theta_n - \beta_i)}
-where the person ability \theta and item difficulty \beta follow a Normal distribution ~ N(0,1).
-The seed is set at the top of the script (`set.seed(<n>)`);
+```
+
+where person ability $`\theta_n`$ and item difficulty $`\beta_i`$ are drawn from
+$`\mathcal{N}(0,1)`$. The seed is set at the top of the script (`set.seed(<n>)`);
 results are reproducible without re-running the human-data pipeline.
 
-Run: `02_simulation/<filename>.Rmd`
+Run: `appendix_b-demo.Rmd`
 
 ## 3. Estimating difficulty with bigIRT
 
@@ -80,7 +93,8 @@ Because the Rasch difficulty scale is identified only up to an additive
 constant, estimates are anchored by fixing mean item
 difficulty to 0. **Higher logits indicate greater difficulty.**
 
-Run: `03_estimation/<filename>.Rmd`
+For transparency and analytical integrity, the implementation details are viewable 
+in `appendix_c-irt.html`.
 
 ## 4. Flemma list with Japanese EFL difficulty indices
 
@@ -112,7 +126,6 @@ Columns: No. | Item ID | flemma | Estimate
 Code: MIT. Data and wordlist: CC BY 4.0.
 
 ## Contact
-
+Tan, Liang Ye
 tanly8@andrew.ac.jp
 
-<name> — <email>
