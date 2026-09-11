@@ -124,5 +124,5 @@ Code: MIT. Data and wordlist: CC BY-NC-SA 4.0.
 
 ## Contact
 Tan, Liang Ye
-tanly8@andrew.ac.jp
+tun91232@temple.edu
 
