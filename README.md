@@ -84,32 +84,35 @@ Run: `03_estimation/<filename>.Rmd`
 
 ## 4. Flemma list with Japanese EFL difficulty indices
 
-Difficulty estimates for 2,999 flemmas for L1 Japanese EFL learners. A *flemma*
+Difficulty estimates for 2,999 items for L1 Japanese EFL learners. A *flemma*
 groups a lemma with its inflected forms but not its derivational family, so
-`walk / walks / walked / walking` is one unit while `walker` is separate.
-Flemmas were derived from <source list/corpus>.
+`run / runs / ran / running` is one unit while `runner` is separate.
+However, it should be noted that the current list contains duplicates due to the platform's 
+backend processes, and users should take this into consideration.
 
 Available as `04_wordlist/<filename>.xlsx` and as a read-only
-[Google Sheet](<view-only-link>).
+[Google Sheet](https://docs.google.com/spreadsheets/d/1ibqLGDiIHkmt2ExeN_PiwK7Nz-7cnMh2Hs3y2q6IxQQ/edit?gid=0#gid=0).
 
-Columns: <flemma | difficulty_logit | SE | n_responses | ...>
+Columns: No. | Item ID | flemma | Estimate
 
 ## Citation
 
 ```bibtex
-@inproceedings{<key>,
-  author    = {<authors>},
+@inproceedings{tan2026repeat,
+  author    = {Tan, Liang Ye and McLean, Stuart},
   title     = {Impact of repeat test-takers on difficulty estimates from
                online vocabulary testing platforms},
-  booktitle = {<proceedings>},
-  year      = {2026}
+  booktitle = {Vocabulary Learning and Instruction},
+  year      = {pending}
 }
 ```
 
 ## License
 
-Code: <MIT / GPL-3>. Data and wordlist: <CC BY 4.0>.
+Code: MIT. Data and wordlist: CC BY 4.0.
 
 ## Contact
+
+tanly8@andrew.ac.jp
 
 <name> — <email>
