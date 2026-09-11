@@ -120,7 +120,7 @@ Columns: No. | Item ID | flemma | Estimate
 
 ## License
 
-Code: MIT. Data and wordlist: CC BY 4.0.
+Code: MIT. Data and wordlist: CC BY-NC-SA 4.0.
 
 ## Contact
 Tan, Liang Ye
