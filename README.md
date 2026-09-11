@@ -10,12 +10,14 @@ human observations from an online testing platform, a simulation study with know
 parameters under comparable sparsity and repeat-testing conditions, and the resulting
 difficulty estimates for 2,999 flemmas.
 
-**Findings:** <one or two sentences — direction and magnitude of the
-bias introduced by repeat test-takers, e.g. "difficulty estimates for
-high-frequency items were displaced by a mean of X logits (SD = Y) when repeat
-test-takers made up ~30% of observations.">
+**Findings:** The results suggest that 1-IRT-modeling using a combination of JLM and 
+Bayesian estimation from the package bigIRT (version 0.1.8) (Driver & Tomasik, 2023) 
+produces item estimates that might be robust to repeat test-takers. Thus, a ranked flemma-based 
+wordlist for Japanese EFL learners using large-scale observations extracted from an online 
+vocabulary testing platform  [vlt.carleton.ca](https://vlt.carleton.ca/) (McLean & Raine, 2019) 
+is presented here.
 
-A mirror of this repository and the resulting wordlist is archived at
+A copy of this repository and the resulting wordlist is also archived at
 [OSF](https://doi.org/<osf-doi>).
 
 ## Contents
@@ -29,8 +31,9 @@ A mirror of this repository and the resulting wordlist is archived at
 
 ## Requirements
 
-- R >= <version>
-- CRAN packages: <list>
+- R >= 4.6.1
+- Rtools45
+- CRAN packages: dplyr, ggplot2, reshape2, rmarkdown, stringi, igraph, data.table
 - [bigIRT](https://github.com/cdriveraus/bigIRT) (Driver & Tomasik, 2023),
   which is not on CRAN:
 
@@ -55,15 +58,16 @@ biased estimates were also removed prior to running bigIRT on the dataset.
 
 Run: `01_preprocessing/<filename>.Rmd`
 
-For transparency, the implementation details is viewable in .Rmd.
+For transparency and analytical integrity, the implementation details are viewable in .Rmd.
 
 ## 2. Simulation with repeat test-takers
 
-Simulates a response matrix with known item and person parameters at 99% missingness, 
+Simulates a response matrix with known item and person parameters at 99% missingness 
 with repeat test-takers contributing approximately 30% of all observations. 
 The dichotomous observations were drawn from a probability matrix 
 described by the 1-IRT (or Rasch) model
 P(X_{ni} = 1 \mid \theta_n, \beta_i) = \frac{\exp(\theta_n - \beta_i)}{1 + \exp(\theta_n - \beta_i)}
+where the person ability \theta and item difficulty \beta follow a Normal distribution ~ N(0,1).
 The seed is set at the top of the script (`set.seed(<n>)`);
 results are reproducible without re-running the human-data pipeline.
 
@@ -71,11 +75,10 @@ Run: `02_simulation/<filename>.Rmd`
 
 ## 3. Estimating difficulty with bigIRT
 
-Difficulty was estimated with a <1PL/Rasch | 2PL> model fitted in bigIRT.
-Because the <Rasch difficulty scale is identified only up to an additive
-constant | 2PL scale is identified only up to a location and scale
-transformation>, estimates are anchored by <constraint, e.g. fixing mean item
-difficulty to 0>. **Higher logits indicate greater difficulty.**
+Difficulty was estimated with a 1PL/Rasch model fitted in bigIRT.
+Because the Rasch difficulty scale is identified only up to an additive
+constant, estimates are anchored by fixing mean item
+difficulty to 0. **Higher logits indicate greater difficulty.**
 
 Run: `03_estimation/<filename>.Rmd`
 
