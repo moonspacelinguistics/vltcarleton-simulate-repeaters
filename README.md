@@ -41,9 +41,6 @@ A copy of this repository and the resulting wordlist is also archived at
   remotes::install_github("cdriveraus/bigIRT")
 ```
 
-Exact package versions are pinned in `renv.lock`; run `renv::restore()` to
-reproduce the environment.
-
 ## 1. Data preprocessing
 
 Human observations were extracted from the response database of the vocabulary
@@ -62,12 +59,12 @@ in `appendix_a-preprocessing.html`.
 ## 2. Simulation with repeat test-takers
 
 Three dataframes were simulated: 
-- “DF”: the original dataframe with “test-takers” (noriginal = 4000) who
+- **DF**: the original dataframe with “test-takers” (noriginal = 4000) who
   answered all “items” (k = 2000)
-- “DF_missing”: a copy of DF, except that each “test-taker” responded only to 20
+- **DF_missing**: a copy of DF, except that each “test-taker” responded only to 20
   out of the 2000 “items”, which was created by randomly removing observations from DF.
   This creates a sparse dataset with 99% missing observations.
-- "DF_repeat": created by first duplicating DF_missing, and then have 10% of the
+- **DF_repeat**: created by first duplicating DF_missing, and then have 10% of the
   “test-takers” chosen randomly for duplication between one and five times. This
   results in a dataframe that has altogether nrepeat = 5153 rows of responses, of
   which 1553 of the rows (making up 30.1% of the observations) were responses from
@@ -102,9 +99,9 @@ Difficulty estimates for 2,999 items for L1 Japanese EFL learners. A *flemma*
 groups a lemma with its inflected forms but not its derivational family, so
 `run / runs / ran / running` is one unit while `runner` is separate.
 However, it should be noted that the current list contains duplicates due to the platform's 
-backend processes, and users should take this into consideration.
+backend processes, and users should take this into consideration when using the wordlist.
 
-Available as `04_wordlist/<filename>.xlsx` and as a read-only
+Available as `appendix_d-flemmas.xlsx` and as a read-only
 [Google Sheet](https://docs.google.com/spreadsheets/d/1ibqLGDiIHkmt2ExeN_PiwK7Nz-7cnMh2Hs3y2q6IxQQ/edit?gid=0#gid=0).
 
 Columns: No. | Item ID | flemma | Estimate
