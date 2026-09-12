@@ -1,7 +1,7 @@
 # Impact of repeat test-takers on difficulty estimates from online vocabulary testing platforms
 
-Code and data for the paper presented at JALT Vocab-SIG 2026 Symposium at Kyushu Sangyo 
-University, 26 Sep 2026, Fukuoka, Japan.
+<i>Code and data for the paper presented at JALT Vocab-SIG 2026 Symposium at Kyushu Sangyo 
+University, 26 Sep 2026, Fukuoka, Japan.</i>
 
 Open, large-scale vocabulary testing platforms tend to produce very sparse response
 matrices in which a minority of test-takers contribute a disproportionate share
@@ -53,8 +53,9 @@ with average reaction times that fell outside of the 3-to-14-second range.
 Unlinked items that form fragmented “islands” of observations that could lead to 
 biased estimates were also removed prior to running bigIRT on the dataset.
 
-For transparency and analytical integrity, the implementation details are viewable 
-in `appendix_a-preprocessing.html`.
+For transparency and analytical integrity, implementation details are
+viewable at [Appendix A](https://www.moonspacelinguistics.github.io/appendix_a-preprocessing.html)
+(source code is available as `appendix_a-preprocessing.Rmd`).
 
 ## 2. Simulation with repeat test-takers
 
@@ -81,7 +82,8 @@ where person ability $`\theta_n`$ and item difficulty $`\beta_i`$ are drawn from
 $`\mathcal{N}(0,1)`$. The seed is set at the top of the script (`set.seed(<n>)`);
 results are reproducible without re-running the human-data pipeline.
 
-Run: `appendix_b-demo.Rmd`
+For replicability, users can run the simulation `appendix_b-demo.Rmd`, and the knitted
+RMarkdown file is viewable at [Appendix B](https://www.moonspacelinguistics.github.io/appendix_b-demo.html).
 
 ## 3. Estimating difficulty with bigIRT
 
@@ -91,7 +93,8 @@ constant, estimates are anchored by fixing mean item
 difficulty to 0. **Higher logits indicate greater difficulty.**
 
 For transparency and analytical integrity, the implementation details are viewable 
-in `appendix_c-irt.html`.
+at [Appendix C](https://www.moonspacelinguistics.github.io/appendix_c-irt.html)
+(source code is available as `appendix_c-irt.Rmd`).
 
 ## 4. Flemma list with Japanese EFL difficulty indices
 
@@ -101,7 +104,7 @@ groups a lemma with its inflected forms but not its derivational family, so
 However, it should be noted that the current list contains duplicates due to the platform's 
 backend processes, and users should take this into consideration when using the wordlist.
 
-Available as `appendix_d-flemmas.xlsx` and as a read-only
+Available as `appendix_d-flemmas.xlsx` and as a read-only at
 [Google Sheet](https://docs.google.com/spreadsheets/d/1ibqLGDiIHkmt2ExeN_PiwK7Nz-7cnMh2Hs3y2q6IxQQ/edit?gid=0#gid=0).
 
 Columns: No. | Item ID | flemma | Estimate
@@ -123,6 +126,7 @@ Columns: No. | Item ID | flemma | Estimate
 Code: MIT. Data and wordlist: CC BY-NC-SA 4.0.
 
 ## Contact
+
 Tan, Liang Ye
 tun91232@temple.edu
 
