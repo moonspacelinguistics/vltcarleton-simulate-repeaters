@@ -116,8 +116,8 @@ Columns: No. | Item ID | flemma | Estimate
   author    = {Tan, Liang Ye and McLean, Stuart},
   title     = {Impact of repeat test-takers on difficulty estimates from
                online vocabulary testing platforms},
-  booktitle = {Vocabulary Learning and Instruction},
-  year      = {pending}
+  booktitle = {Paper presented at the JALT Vocab-SIG 2026 Symposium, Kyushu Sangyo University, Fukuoka.},
+  year      = {2026, 26 September}
 }
 ```
 
