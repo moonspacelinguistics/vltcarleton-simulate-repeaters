@@ -54,7 +54,7 @@ Unlinked items that form fragmented “islands” of observations that could lea
 biased estimates were also removed prior to running bigIRT on the dataset.
 
 For transparency and analytical integrity, implementation details are
-viewable at [Appendix A](https://www.moonspacelinguistics.github.io/appendix_a-preprocessing.html)
+viewable at [Appendix A](https://moonspacelinguistics.github.io/appendix_a-preprocessing.html)
 (source code is available as `appendix_a-preprocessing.Rmd`).
 
 ## 2. Simulation with repeat test-takers
@@ -83,7 +83,7 @@ $`\mathcal{N}(0,1)`$. The seed is set at the top of the script (`set.seed(<n>)`)
 results are reproducible without re-running the human-data pipeline.
 
 For replicability, users can run the simulation `appendix_b-demo.Rmd`, and the knitted
-RMarkdown file is viewable at [Appendix B](https://www.moonspacelinguistics.github.io/appendix_b-demo.html).
+RMarkdown file is viewable at [Appendix B](https://moonspacelinguistics.github.io/appendix_b-demo.html).
 
 ## 3. Estimating difficulty with bigIRT
 
@@ -93,7 +93,7 @@ constant, estimates are anchored by fixing mean item
 difficulty to 0. **Higher logits indicate greater difficulty.**
 
 For transparency and analytical integrity, the implementation details are viewable 
-at [Appendix C](https://www.moonspacelinguistics.github.io/appendix_c-irt.html)
+at [Appendix C](https://moonspacelinguistics.github.io/appendix_c-irt.html)
 (source code is available as `appendix_c-irt.Rmd`).
 
 ## 4. Flemma list with Japanese EFL difficulty indices
