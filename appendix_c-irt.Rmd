@@ -1,0 +1,379 @@
+---
+title: "Appendix C: IRT Modelling with Cleaned Data"
+author: "Tan, L. Y."
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    code_folding: hide
+    keep_md: true
+    
+---
+<style type = "text/css">
+  .main-container{max-width: 80%;}
+  .row{display: flex;}
+  .column{flex: 50%;}
+
+pre.verbatim code span {
+  color: inherit !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+}
+</style>
+
+```{r setup, include = FALSE, warning = FALSE}
+
+library(dplyr)
+library(ggplot2)
+library(igraph)
+library(readxl)
+library(reshape2)
+library(rmarkdown)
+library(bigIRT)
+library(data.table)
+
+
+#Housekeeping
+rm(list = ls())
+
+knitr::knit_engines$set(text = function(options) {
+  if (isFALSE(options$echo)) return("")
+  paste0(
+    "\n```{.r .verbatim}\n",
+    paste(options$code, collapse = "\n"),
+    "\n```\n"
+  )
+})
+```
+
+
+## 1. Reshaping Dataframe
+
+The following are the codes for further preprocessing prior to applying bigIRT:
+
+```{r format-mclean-data, eval=TRUE, warning=FALSE}
+
+# Load the file
+f <- "df_irt_itemv.csv"
+hdr <- names(fread(f, nrows = 0))          # person IDs are the header
+
+
+# Wide format
+wide <- fread(f, header = TRUE,
+              colClasses = c("character", rep("integer", length(hdr) - 1L)),
+              na.strings = c("NA", "", ".", "NULL"))
+setnames(wide, 1, "Item")
+
+setDT(wide)
+setnames(wide, c("Item", as.character(unlist(wide[1, -1]))))
+wide <- wide[-1]
+for (j in names(wide)[-1]) set(wide, j = j, value = as.integer(wide[[j]]))
+
+
+# Apply melt in batches
+id_col      <- "Item"
+person_cols <- setdiff(names(wide), id_col)
+
+chunks <- split(person_cols, ceiling(seq_along(person_cols) / 2000L))
+out    <- vector("list", length(chunks))
+
+for (k in seq_along(chunks)) {
+  sub <- wide[, c(id_col, chunks[[k]]), with = FALSE]
+  out[[k]] <- melt(sub, id.vars = id_col,
+                   variable.name = "id", value.name = "score",
+                   na.rm = TRUE, variable.factor = FALSE)
+  cat(k, "/", length(chunks), "- kept", nrow(out[[k]]), "\n")
+}
+
+# Convert into long format for bigIRT
+long <- rbindlist(out); rm(out, wide); gc()
+
+long[, Scale := "1"]                        # Required for fitIRT()
+long[, score := as.integer(score)]
+setcolorder(long, c("id", "Item", "Scale", "score"))
+stopifnot(!anyNA(long), all(long$score %in% c(0L, 1L)))
+
+# Check stats before fitting
+Np <- uniqueN(long$id); Ni <- uniqueN(long$Item)
+#nrow(long) / (Np * Ni)                      # observed density = 0.01696261
+#mean(long$score)                            # overall p-value = 0.7075237
+
+```
+<br>
+
+### 2. Summary Statistics
+
+#### 2.1 Per-Person Summary
+Below are the summary statistics on the number of items responded per individual:
+
+```{r per-person-summary, eval=TRUE}
+
+# Check distribution again for person & item
+per_person <- long[, .N, by = id][order(N)]
+
+summary(per_person$N) # summary stats
+sd(per_person$N)      # SD
+```
+<br>
+
+And here is the per person boxplot:
+
+```{r per-person-boxplots, eval=TRUE}
+# Plot boxplots
+boxplot(per_person$N)
+
+```
+<br>
+
+#### 2.2 Per-Item Summary
+
+Likewise, the summary statistics per item:
+
+```{r per-item-summary, eval=TRUE}
+
+# Check distribution again for item
+per_item   <- long[, .N, by = Item][order(N)]
+
+summary(per_item$N)   #summary stats
+sd(per_item$N)        #SD
+
+```
+<br>
+
+Per-item boxplot:
+
+```{r boxplots, eval=TRUE}
+
+# Plot boxplots
+boxplot(per_item$N)
+
+```
+<br>
+
+### 3. Final Cleaning Round
+
+#### 3.1 Fragmentation checks
+
+One last step checking for fragmentation of observations before IRT modelling (i.e., due to a lack of linking items, causing responses to form isolated groups):
+
+```{r sparsity-checks, eval=TRUE}
+
+# Check sparsity by analyzing the data as a graph
+g <- graph_from_data_frame(
+       long[, .(from = paste0("P_", id), to = paste0("I_", Item))],
+       directed = FALSE)
+cmp <- components(g)
+cmp$no                    # want 1
+sort(cmp$csize, decreasing = TRUE)[1:10]
+
+# Keep only the largest component if fragmented
+gc_v  <- names(cmp$membership)[cmp$membership == which.max(cmp$csize)]
+keepP <- sub("^P_", "", grep("^P_", gc_v, value = TRUE))  # N = 45208 is the largest component
+keepI <- sub("^I_", "", grep("^I_", gc_v, value = TRUE))
+long  <- long[id %in% keepP & Item %in% keepI]
+rm(g, cmp); gc()
+
+```
+
+The data formed 2 fragments, and the largesr component had N = 45208 responses. 246 responses had to be dropped due to fragmentation.
+
+### 3.2 Removing perfect scores
+
+Final round of cleaning to remove items / persons with perfect scores:
+
+```{r}
+# Check for perfect scores for removal
+d0 <- copy(long)
+d1 <- dropPerfectScores(d0, scoreref. = "score", itemref. = "Item", idref. = "id")
+uniqueN(long$id)   - uniqueN(d1$id)      # persons lost
+uniqueN(long$Item) - uniqueN(d1$Item)    # items lost
+```
+
+Another 1615 responses and 7 items dropped from the dataframe. Next, to fit 1-IRT using bigIRT on the final cleaned dataframe.
+
+## 4. Fitting 1-IRT using bigIRT
+
+Model fitting using bigIRT:
+
+```{r big-IRT, eval=TRUE}
+
+# Fit the model with a subset of data
+set.seed(1)
+
+fit <- fitIRT(
+  long,
+  score = 'score', id = 'id', item = 'Item', scale = 'Scale',
+  pl    = 1,                 # Rasch: A=1, C=0, D=1 fixed
+  cores = 6,                 # parallelised by splitting on id
+  dropPerfectScores = TRUE,
+  ebayes = TRUE,             # priors adapted from a first-pass estimate
+  priors = TRUE,
+  normalise = TRUE,          
+  iter = 2000
+)
+
+# Extract results
+itemPars   <- as.data.table(fit$itemPars)    # Item, A, B, C, D  (A=1, C=0, D=1 at pl=1)
+personPars <- as.data.table(fit$personPars)  # Not important but just in case
+                                             # Only had person estimates for N = 40587
+```
+<br>
+
+Check which items were dropped:
+
+```{r items-dropped, eval=TRUE}
+
+# List items dropped
+setdiff(unique(long$Item), itemPars$Item)
+
+```
+<br>
+
+Extract and save item parameters:
+
+```{r extraction, eval=TRUE, echo=TRUE}
+
+# Normalize the parameters
+np <- normaliseIRT(B = itemPars$B, Ability = personPars[[2]],
+                   A = itemPars$A, normbase = 'Ability', robust = FALSE)
+
+
+# Extract estimates
+itemPars <- as.data.table(fit$itemPars)
+setnames(itemPars, 1, "Item")
+itemPars[, .(nItems = .N, A = uniqueN(A), C = uniqueN(C), D = uniqueN(D))]
+
+personPars <- as.data.table(fit$personPars)   # Need this for Wright Map later
+setnames(personPars, 1, "id")
+theta_col <- names(personPars)[2]
+
+```
+<br>
+
+Check correlation between item estimates and item scores:
+
+```{r correl-items, eval=TRUE}
+
+# Check correlation between item estimates and item scores:
+pvals <- long[, .(p_correct = mean(score), n_obs = .N), by = Item]
+chk   <- merge(itemPars, pvals, by = "Item")
+
+cor(chk$B, chk$p_correct, method = "spearman")        # Should be r = -.95 or better; r = -0.9543101
+
+```
+
+Correlation at r = -0.95 or better is a good sign that bigIRT worked properly with the observations.
+
+<br>
+
+### 4.1 Summary of Resulting Item Estimates
+
+Overall statistics of item estimates; bigIRT does not have the same functionality as WinSteps but it gives a rough idea on item separation:
+
+```{r item-summary, eval=TRUE}
+
+# View summary of item estimates
+summary(itemPars$B)
+hist(itemPars$B)
+
+```
+<br>
+
+Plot Wright map to see how well-targeted are the person and item measures:
+
+```{r plot-WM, eval=TRUE}
+# Plot Wright map
+wm <- rbind(
+  data.table(logit = personPars[[theta_col]], type = "Persons (ability θ)"),
+  data.table(logit = itemPars$B,              type = "Items (difficulty B)")
+)
+ggplot(wm, aes(logit)) +
+  geom_histogram(bins = 80, fill = "grey25") +
+  facet_wrap(~type, ncol = 1, scales = "free_y") +
+  labs(x = "Logits", y = "Count", title = "Person–item (Wright) map") +
+  theme_bw()
+```
+<br>
+
+Results suggest that the items are well-targeted although there might be a floor effect.
+
+### 4.2 Item Fit Statistics
+
+The following are the codes for computing item fit statistics:
+
+```{r item-fit, eval=TRUE}
+
+# Construct data table
+d <- data.table(
+  item_i = as.integer(fit$dat$item),
+  id_i   = as.integer(fit$dat$id),
+  score  = as.integer(fit$dat$score)
+)
+d[, `:=`(Item  = itemPars$Item[item_i],
+         id    = personPars$id[id_i],
+         theta = personPars[[theta_col]][id_i],
+         A = itemPars$A[item_i], B = itemPars$B[item_i],
+         C = itemPars$C[item_i], D = itemPars$D[item_i])]
+
+d[, P := C + (D - C) / (1 + exp(-A * (theta - B)))]   # 4PL; reduces to 1/(1+exp(-(θ-B))) at pl=1
+
+
+d[, `:=`(W = P * (1 - P), resid = score - P)]
+d[, Ck := W * ((1 - P)^3 + P^3)]        # E[(x - P)^4] for a Bernoulli
+
+itemfit <- d[, .(
+  N      = .N,
+  pObs   = mean(score),
+  pExp   = mean(P),
+  SE_B   = 1 / sqrt(sum(W)),                    # Fisher information for B, θ treated as known
+  outfit = mean(resid^2 / W),                   # unweighted mean square
+  infit  = sum(resid^2) / sum(W),               # information-weighted mean square
+  q_out  = sqrt(sum(Ck / W^2 - 1)) / .N,
+  q_in   = sqrt(sum(Ck - W^2)) / sum(W)
+), by = .(item_i, Item)]
+
+# Wilson–Hilferty standardisation (Wright & Masters)
+itemfit[, `:=`(outfit_z = (outfit^(1/3) - 1) * (3/q_out) + q_out/3,
+               infit_z  = (infit^(1/3)  - 1) * (3/q_in)  + q_in/3)]
+
+itemfit <- merge(itemfit, itemPars, by = "Item")
+setorder(itemfit, B)
+itemfit[]
+
+```
+<br>
+
+Dot-and-Whisker plot for item estimates:
+
+```{r dot-whisker-plot, eval=TRUE, warning=FALSE}
+
+# Dot and whisker plot with CI for estimates
+cp <- rbind(head(itemfit, 35), itemfit[sample(.N, 35)], tail(itemfit, 25))
+cp <- unique(cp, by = "Item")                      # drop the collided rows
+cp[, Item := factor(Item, levels = Item[order(B)])]
+
+ggplot(cp, aes(B, Item)) +
+      geom_errorbarh(aes(xmin = B - 1.96*SE_B, xmax = B + 1.96*SE_B), height = 0) +
+      geom_point(size = 1) +
+      labs(x = "Difficulty B (±1.96 SE)", y = NULL) + theme_bw()
+
+```
+<br>
+
+Check item separation statistics:
+
+```{r item-separation, eval=TRUE}
+# Computation for item separation
+itemfit[, `:=`(Wbar = 1/(SE_B^2 * N),
+               d_floor = log10(SE_B) - log10(2/sqrt(N)))]
+
+MSE  <- mean(itemfit$SE_B^2)
+SDo  <- sd(itemfit$B)
+G    <- sqrt(max(SDo^2 - MSE, 0)/MSE)   # item separation index
+c(separation = G, reliability = G^2/(1 + G^2))
+```
+Results show separation at 6.25 levels with item reliability of 0.975.
+
+<br>
+<br>
+<br>
+<br>

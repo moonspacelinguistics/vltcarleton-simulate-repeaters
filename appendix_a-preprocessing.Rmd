@@ -1,0 +1,1124 @@
+---
+title: "Appendix A: Data-Preprocessing"
+author: "Tan L. Y."
+date: "Updated on `r Sys.Date()`"
+output: 
+  html_document:
+    code_folding: hide
+---
+<style type = "text/css">
+  .main-container{max-width: 80%;}
+  .row{display: flex;}
+  .column{flex: 50%;}
+</style>
+
+```{r setup, include=FALSE, warning=FALSE}
+
+library(lsa)
+library(dplyr)
+library(ggplot2)
+library(mice)
+library(parallel)
+library(readxl)
+library(reshape2)
+library(rmarkdown)
+library(stringi)
+
+#Housekeeping
+rm(list = ls())
+
+```
+
+### 1. Data Pre-Processing for "Binary" Data
+
+The downloaded data came in the form of an Excel workbook (.xls) with three different tabs: 
+
+1. "Binary"  :  Spreadsheet containing dichotomous scoring of correct (coded as "1") and wrong (coded as "0") answers
+2. "Answers" :  Spreadsheet containing the actual L1 translations keyed in by the participants
+3. "Times"   :  Spreadsheet containing reaction times it took to answer each test item
+
+Therefore, there is a need to process the files and concatenate them into one large dataframe before any further analysis. Since the all the sheets in each Excel Workbook follow the same data structure, it is possible to concatenate the files while maintaining the integrity of the row and column positions. 
+
+The following are the steps that were taken:
+
+* Step 1: Turn all relevant spreadsheets into individual .csv files
+* Step 2: Converting files into R-readable format by removing irrelevant rows and columns in each .csv file
+* Step 3: Add unique IDs to each row in every .csv file
+* Step 4: Concatenate all .csv files into one big dataframe
+
+
+```{r binary-one-big-df, eval=FALSE}
+
+#### Step 1: Convert "Binary" sheets into csv ####
+
+# Set input and output directories
+input_dir <- "M:/receptivedata"
+output_dir <- "M:/binary-csv"
+
+# List all Excel files (.xlsx and .xls)
+excel_files <- list.files(path = input_dir, pattern = "\\.xls[x]?$", full.names = TRUE)
+
+# Loop through each Excel file
+for (file in excel_files) {
+  
+  # Read the sheet with binary data
+  df <- read_excel(file, sheet = "Binary")
+  
+  # Create the output CSV file name
+  file_name <- tools::file_path_sans_ext(basename(file))
+  output_file <- file.path(output_dir, paste0(file_name, ".csv"))
+  
+  # Write to CSV
+  write.csv(df, output_file, row.names = FALSE)
+  
+  # Print progress
+  cat("Converted:", basename(file), "\n")
+}
+
+
+
+#### Step 2: Converting all .csv files into R-readable dataframe ####
+
+# Set input and output directories
+input_dir <- "M:/binary-csv"
+output_dir <- "M:/binary-rremoved"
+
+# List all CSV files
+csv_files <- list.files(path = input_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Loop over each CSV file
+for (file in csv_files) {
+  
+  # Read the CSV file
+  df <- read.csv(file)
+  names(df) <- NULL
+
+  # Remove specific rows by index (e.g., rows 1-17 and 19-22)
+  df_rremoved <- df[-c(1:16, 18:21), -c(3:4)]
+  
+  # Create an output file name
+  # output_file <- file.path(path = output_dir, file)
+  file_name <- tools::file_path_sans_ext(basename(file))
+  output_file <- file.path(output_dir, paste0(file_name, "_rrm", ".csv"))
+  
+  # Save the cleaned DataFrame
+  write.csv(df_rremoved, output_file, row.names = FALSE)
+  
+  # Print progress
+  cat("Processed:", file, "\n")
+}
+
+
+
+#### Step 3: Add unique participant IDs ####
+
+## Step 3a: Rename files according to year & month
+
+# Set source and destination directories
+source_dir <- "M:/binary-rremoved"
+dest_dir <- "M:/binary-renamed"
+
+# List files in the source directory
+files <- list.files(source_dir, full.names = TRUE)
+
+# Loop through each file
+for (file in files) {
+  # Extract base file name and extension
+  base <- basename(file)
+  name_no_ext <- tools::file_path_sans_ext(base)
+  ext <- tools::file_ext(base)
+  
+  # Truncate to first 6 characters; this is the month of data
+  truncated_name <- substr(name_no_ext, 1, 6)
+  
+  # Combine to create new file name
+  new_filename <- paste0(truncated_name, ".", ext)
+  new_path <- file.path(dest_dir, new_filename)
+  
+  # Copy the file with the new name
+  file.copy(from = file, to = new_path)
+  
+  cat("Copied:", base, "->", new_filename, "\n")
+}
+
+
+
+## Step 3b: Add participant IDs using year & month on file name
+
+# Set directory to make code more readable
+source_dir <- "M:/binary-renamed"
+new_dir <- "M:/binary-add-id"
+
+# List all CSV files
+files <- list.files(path = source_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Loop over each CSV file
+for (file in files) {
+  
+  # Extract base file name and remove extension
+  base <- basename(file)
+  name_no_ext <- tools::file_path_sans_ext(base)
+  
+  # Read the CSV file
+  df <- read.csv(file)
+  
+  for (i in nrow(df)){
+    df[,1] <- paste0(name_no_ext, df[,1])
+  }
+  output_file <- file.path(new_dir)
+  write.csv(df, file=paste0(new_dir,base), row.names = FALSE)
+}
+
+
+
+#### Step 4: Concatenate all edited csv files into one big dataframe ####
+
+# Note: Item ID is consistent across the months, so dataframes can be concatenated using bind_rows()
+# Set directory 
+source_dir <- "M:/binary-add-id"
+
+# List all files
+files <- list.files(path = source_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Bind all dfs
+df <- bind_rows(lapply(files, read.csv))
+
+write.csv(df, "all_binary.csv", row.names = FALSE)
+
+
+
+### 2. Removing rows & columns with only NA values
+
+# Load dataframe
+df <- read.csv("M:/all_binary_foriegn_id_filtered.csv")
+# N = 45774 observations
+
+# Remove rows with only "NA" values
+df <- df[!apply(is.na(df), 1, all), ]
+# N = 45774; no observations removed. Looks like the empty rows are all the known CN L1 students who were already removed from the system previously
+
+# Remove columns with only "NA" values
+df <- df[, !apply(is.na(df), 2, all)]
+# K = 8008 (df has 8009 variables); full list of test items was K = 8149 (i.e., 8150 variables), so 141 test items had only NAs
+
+# Remove rows with only value "1" to look for invalid responses from system testing
+df <- df[!apply(df == 1, 1, all), ]
+# N = 45774; no observations removed. Looks like any system testing (if included) did not use all items at any one time
+
+# Rename first column
+names(df)[1] <- "id"
+
+# Write file to .csv
+write.csv(df, "all_binary_atleast1.csv", row.names = FALSE)
+
+```
+
+
+### 2. Data Pre-Processing for "Answer" Data 
+
+The "Answer" data is used to filter out any potential non-Japanese L1 participants. This is done to reduce any potential confounds from L1. The same four-step process done with "Binary" data is repeated here to obtain a single large dataframe with IDs.
+
+
+```{r answers-one-big-df, eval=FALSE}
+
+#### Step 1: Convert "Answers" sheet to csv ####
+
+# Set input and output directories
+input_dir <- "M:/receptivedata"
+output_dir <- "M:/answers-csv"
+
+# List all Excel files (.xlsx and .xls)
+excel_files <- list.files(path = input_dir, pattern = "\\.xls[x]?$", full.names = TRUE)
+
+# Loop through each Excel file
+for (file in excel_files) {
+  
+  # Read the sheet with Answers data
+  df <- read_excel(file, sheet = "Answers")
+  
+  # Create the output CSV file name
+  file_name <- tools::file_path_sans_ext(basename(file))
+  output_file <- file.path(output_dir, paste0(file_name, ".csv"))
+  
+  # Write to CSV
+  write.csv(df, output_file, row.names = FALSE)
+  
+  # Print progress
+  cat("Converted:", basename(file), "\n")
+}
+
+
+
+#### Step 2: Converting into files into dataframes ####
+
+# Set input and output directories
+input_dir <- "M:/answers-csv"
+output_dir <- "M:/answers-rremoved"
+
+# List all CSV files
+csv_files <- list.files(path = input_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Loop over each CSV file
+for (file in csv_files) {
+  
+  # Read the CSV file
+  df <- read.csv(file)
+  names(df) <- NULL
+
+  # Remove specific rows by index (e.g., rows 1-17 and 19-22)
+  df_rremoved <- df[-c(1:16, 18:21), -c(2:4)]
+  
+  # Create an output file name
+  # output_file <- file.path(path = output_dir, file)
+  file_name <- tools::file_path_sans_ext(basename(file))
+  output_file <- file.path(output_dir, paste0(file_name, "_rrm", ".csv"))
+  
+  # Save the cleaned DataFrame
+  write.csv(df_rremoved, output_file, row.names = FALSE)
+  
+  # Print progress
+  cat("Processed:", file, "\n")
+}
+
+
+
+#### Step 3: Add unique participant IDs ####
+
+## 3a: Rename files according to year & month
+
+# Set source and destination directories
+source_dir <- "M:/answers-rremoved"
+dest_dir <- "M:/answers-renamed"
+
+# List files in the source directory
+files <- list.files(source_dir, full.names = TRUE)
+
+# Loop through each file
+for (file in files) {
+  # Extract base file name and extension
+  base <- basename(file)
+  name_no_ext <- tools::file_path_sans_ext(base)
+  ext <- tools::file_ext(base)
+  
+  # Truncate to first 6 characters; this is the month of data
+  truncated_name <- substr(name_no_ext, 1, 6)
+  
+  # Combine to create new file name
+  new_filename <- paste0(truncated_name, ".", ext)
+  new_path <- file.path(dest_dir, new_filename)
+  
+  # Copy the file with the new name
+  file.copy(from = file, to = new_path)
+  
+  cat("Copied:", base, "->", new_filename, "\n")
+}
+
+
+
+# 3b: Add participant IDs using year & month on file name
+
+# Set directory to make code more readable
+source_dir <- "M:/answers-renamed"
+new_dir <- "M:/answers-add-id"
+
+# List all CSV files
+files <- list.files(path = source_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Loop over each CSV file
+for (file in files) {
+  
+  # Extract base file name and remove extension
+  base <- basename(file)
+  name_no_ext <- tools::file_path_sans_ext(base)
+  
+  # Read the CSV file
+  df <- read.csv(file)
+  
+  for (i in nrow(df)){
+    df[,1] <- paste0(name_no_ext, df[,1])
+  }
+  output_file <- file.path(new_dir)
+  write.csv(df, file=paste0(new_dir,base), row.names = FALSE)
+}
+
+
+
+#### Step 4: Concatenate all files into one big dataframe
+
+# Set directory 
+source_dir <- "M:/answers-add-id"
+
+# List all files
+files <- list.files(path = source_dir, pattern = "\\.csv$", full.names = TRUE)
+
+big_df <- data.frame()
+
+# Loop over each CSV file
+for (file in files) {
+  # Read csv file
+  df <- read.csv(file)
+  
+  # Make all elements into strings
+  df <- as.data.frame(sapply(df, as.character), stringsAsFactors = FALSE)
+  
+  # Concatenate dataframe
+  big_df <- bind_rows(big_df, df)
+}
+
+# Rename first column
+names(big_df)[1] <- "id"
+
+# Write to .csv
+write.csv(big_df, "all-answers.csv", row.names = FALSE)
+# Note that this "Answer" dataframe includes all 45965 observations, including empty & invalid responses, just to be on the safe side. The focus of any filtering will be on the "Binary" observations
+
+
+```
+
+
+### 3. Filtering out all rows with non-Japanese respondents
+
+Next, the actual answers provided by respondents will be used to remove any potential non-Japanese L1 participants. 
+
+#### 3a. Testing with generated data 
+
+* Prior to running the code to filter the actual data, the code was tested with generated data first.
+
+```{r answers-filter-toy-data, eval=FALSE}
+
+# Trial run of filtering process using made-up data
+# Set random seed for reproducibility
+set.seed(123)
+
+# Create example Japanese and non-Japanese text
+japanese_text <- c("こんにちは", "~ありがとう", "さようなら", "テスト", "日本語")
+non_japanese_text <- c("hello", "world", "data", "science", "example")
+kanji_text <- c("日本語", "信頼", "横浜", "你好", "再见")
+
+# Function to generate random values: Japanese, non-Japanese, or NA
+generate_mixed_value <- function() {
+  choices <- c(japanese_text, non_japanese_text, NA)
+  sample(choices, 1)
+}
+
+# Generate a 20x20 dataframe
+df <- as.data.frame(
+  matrix(nrow = 20, ncol = 20, data = replicate(20*20, generate_mixed_value()))
+)
+
+# Create 5 rows with only Japanese and NA values
+generate_japanese_or_na <- function() {
+  choices <- c(japanese_text, NA)
+  sample(choices, 20, replace = TRUE)
+}
+
+df_japanese_na <- as.data.frame(
+  t(replicate(5, generate_japanese_or_na()))
+)
+
+
+# Create 5 rows with only English and NA values
+generate_english_or_na <- function() {
+  choices <- c(non_japanese_text, NA)
+  sample(choices, 20, replace = TRUE)
+}
+
+df_english_na <- as.data.frame(
+  t(replicate(5, generate_english_or_na()))
+)
+
+
+# Create 5 rows with only Kanji and NA values
+generate_kanji_or_na <- function() {
+  choices <- c(kanji_text, NA)
+  sample(choices, 20, replace = TRUE)
+}
+
+df_kanji_na <- as.data.frame(
+  t(replicate(5, generate_kanji_or_na()))
+)
+
+
+# Combine dataframes
+df_combined <- rbind(df, df_japanese_na, df_english_na, df_kanji_na, stringsAsFactors=FALSE)
+# Now, we have a dataframe containing a mix of JP script, EN script, and NAs
+
+
+# Regex patterns: to capture every row that does not contain Japanese script
+jp_script <- "[\\p{Han}\\p{Hiragana}\\p{Katakana}\\～~∼０-９\\0-9]"
+non_jp_script <- "[^\\p{Han}\\p{Hiragana}\\p{Katakana}\\～~∼]"
+
+# Testing: filtering non-JP script
+filtered_non_jp_rows <- df_combined %>%
+  filter(
+    apply(., 1, function(row) {
+      all(is.na(row) | grepl(non_jp_script, row, perl = TRUE))
+    })
+  )
+# As expected, the filter removed everything except "only-English" rows
+# "Kanji-only" rows are included in the filter
+
+
+# Testing: filtering JP script
+filtered_jp_rows <- df_combined %>%
+  filter(
+    apply(., 1, function(row) {
+      all(is.na(row) | grepl(jp_script, row, perl = TRUE))
+    })
+  )
+# As expected, this included all the rows with Chinese characters (aka Kanji) too
+# The "tilda" sign is included coz JP students tend to use this for some function words to indicate their syntactic function
+
+```
+
+#### 3b. Filtering the actual data for L1 JP respondents only
+
+* After rounds of initial testing using the generated data, the actual filtering takes the following steps:
+    
+    
+    1. Filter out responses with strictly JP script only
+    2. Filter for any potential CN respondents, since the regex pattern does not differentiate CN from JP kanji
+    3. Export lists without NAs for visual inspection
+
+
+```{r answers-JPonly-filter, eval=FALSE}
+
+# Filter for strictly JP-only rows
+
+# Load dataframe
+df_all_ans <- read.csv("M:/all-answers.csv", fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+# N = 45965, K = 8150
+
+# JP pattern regex
+jp_script <- "[\\p{Han}\\p{Hiragana}\\p{Katakana}\\<ok\\>\\<OK\\>\\s\\～~∼ー?？xX✕ｘ❌０-９\\0-9]"
+# Note that some non-JP symbols are included because some JP students tend to use them
+
+# Filtering JP-only script
+filtered_jp_only <- df_all_ans %>%
+  filter(
+    apply(., 1, function(row) {
+      all(is.na(row) | grepl(jp_script, row, perl = TRUE))
+    })
+  )
+# N = 45073; 892 observations containing non-JP script removed; this is a strict filter where responses with any English alphabets will be removed 
+# N = 44929 without words "ok" and "OK"
+
+# Note that this filtered list may contain CN respondents
+
+# Export JP-only dataframe as .csv
+write.csv(filtered_jp_only, "jp_answers.csv", row.names = FALSE)
+
+```
+
+#### 3c. Filtering for any potential CN respondents
+
+* Since JP and CN share the same encoding for kanji scripts, this chunk of code is for removing any potential CN participants 
+* Four different approaches were used, and none of them yielded any CN respondents
+* Thus, it is safe to say that the dataset is very unlikely to contain L1 Chinese respondents
+
+
+```{r answers-remove-CN, eval=FALSE}
+
+# To further remove potential CN respondents by using CN-only script
+df <- read.csv("M:/preprocessing-working-file_20251201/jp_answers.csv", fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+
+
+#METHOD 1: Filter for responses that contain nothing but kanji
+# Define regex pattern for kanji
+kanji <- "[\\p{Han}]"
+
+# Filtering only Kanji script (to identify Chinese L1 speakers)
+filtered_kanji_only <- df %>%
+  filter(
+    apply(., 1, function(row) {
+      all(is.na(row) | grepl(kanji, row, perl = TRUE))
+    })
+  )
+# Filtering for kanji-only responses for CN respondents returned zero observations
+
+
+
+# METHOD 2: List CN-only characters using UTF-8 and filter them out
+cn_script_raw <- readLines("M:/cn_only_utf8_reduced.txt", encoding = "UTF-8") #truncated the list to around 900 characters
+cn_script_chr <- stringi::stri_split_boundaries(cn_script_raw, type="character")
+cn_script <- paste(cn_script_chr, collapse = "|")
+cn_script
+# Filtering with UTF-8 encoded CN-only characters returned zero observations
+
+
+
+# METHOD 3: Manual listing of low frequency CN characters that are also used as JP kanji
+cn_script_test <- "[\\你\\我\\他\\她\\它\\谁\\的\\们\\门]"
+# Filtering with manual list of common CN characters that are shared with JP returned zero observations
+# Random words tested with search function in Excel but returned zero observations
+
+
+
+# METHOD 4: Use DeepL CN-only translations of test items and filtering for them to maximize likelihood of catching any CN observations
+# All specifically-CN translations are broken into 9 lists of ~990 lines due to RAM limitations
+# Full list of k = 7341 one-word items is in Excel file with item id, and test items in English, Japanese, and Chinese
+
+cn_ans_raw <- readLines("M:/cn_answers9.txt", encoding = "UTF-8")
+cn_ans <- paste(cn_ans_raw, collapse = "|")
+
+# Filtering for CN translations of items answers in English
+filtered_cn <- df %>%
+  filter(
+    apply(., 1, function(row) {
+      all(is.na(row) | grepl(cn_ans, row, perl = TRUE))
+    })
+  )
+
+# The last list "cn_answers9.txt" returned 417 observations
+# To filter out the actual answers for each row and concatenate them as a string and paste in a new column to see what is filtered out
+filtered_cn$non_na_values <- apply(filtered_cn, 1, function(row) {
+  row[!is.na(row)]
+})
+filtered_cn$non_na_values <- lapply(filtered_cn$non_na_values, unname)
+# These are all just empty columns; for some reason R reads the .txt and filtered out all responses with nothing but NAs in the answer sheet
+
+# To keep a record and cross check if these 417 observations coincide with all filtered invalid responses later
+# Create empty dataframe
+cn_empty_list <- data.frame(matrix(ncol = 0, nrow = 417))
+
+# Copy and paste list to new dataframe
+cn_empty_list$ans <- filtered_cn$non_na_values
+cn_empty_df <- as.data.frame(rbind(cn_empty_list))
+
+writeLines(as.character(cn_empty_df), "cn_empty_ids.txt")
+# Method 4 also yielded zero observations
+
+```
+
+### 4. Visual check for the filtered non-JP scripts in the "Answer" data
+
+* The non-JP answers were filtered for a quick visual check
+* A sample of the removed responses are below. It appears that there might be legitimate responses that were removed because response contains at least 1 English alphabet and/or emojis
+
+
+    + However, this is ok since it is better to have a stricter filter than a lenient filter, which has a higher likelihood of including non-Japanese responses
+
+
+```{r answers-visualise-nonJP, eval=FALSE}
+
+# Load all answers
+df_all_ans <- read.csv("all-answers.csv", fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+filtered_jp_only <- read.csv("jp_answers.csv", , fileEncoding = "UTF-8", stringsAsFactors = FALSE)
+
+# Filter for non-JP respondents (n = 892)
+non_jp_ans <- dplyr::anti_join(df_all_ans, filtered_jp_only, by=c("id"))
+
+
+# Truncate all non-NA values by column and convert into list format
+non_jp_ans$non_na_values <- apply(non_jp_ans, 1, function(row) {
+  row[!is.na(row)]
+})
+non_jp_ans$non_na_values <- lapply(non_jp_ans$non_na_values, unname)
+
+# Create empty dataframe
+non_jp_ans_df <- data.frame(matrix(ncol = 0, nrow = 892))
+
+# Copy and paste list to new dataframe
+non_jp_ans_df$ans <- non_jp_ans$non_na_values
+non_jp_ans_list_df <- as.data.frame(rbind(non_jp_ans_df))
+
+# Export the non-JP files
+writeLines(as.character(non_jp_ans_list_df), "nonjp_ans_list.txt")
+write.csv(non_jp_ans, "non_jp_answers.csv", row.names=FALSE)
+
+# The non-JP list appears to potentially contain legitimate JP responses, but student had typed at least one alphabet (apart from "x" or "ok") or emojis.
+# All these shall be removed as invalid responses since there isn't a way to reinsert these potentially legitimate JP responses into the dataframe consistently
+
+```
+
+
+
+![Truncated text file of removed responses as viewed in Visual Studio Code](M:/filtered_nonjp.jpg)
+
+
+### 5. Data Pre-Processing for "Times" Data 
+
+* The reaction time data is used for filtering out any invalid responses that might have included student cheating or system testing
+* A quick visual check with one of the files shows that system test responses result in correct answers in <0.3s
+* To use RT for filtering, I need to repeat Steps 1-4 done with "Binary" and "Answers" data and concatenate everything into one big dataframe before any filtering can be done
+
+```{r times-one-big-df, eval=FALSE}
+
+# Concatenate Times sheet into one big df
+
+#### Step 1: Convert into .csv files ####
+
+# Set input and output directories
+input_dir <- "M:/receptivedata"
+output_dir <- "M:/times-csv"
+
+# List all Excel files (.xlsx and .xls)
+excel_files <- list.files(path = input_dir, pattern = "\\.xls[x]?$", full.names = TRUE)
+
+# Loop through each Excel file
+for (file in excel_files) {
+  
+  # Read the sheet with reaction times
+  df <- read_excel(file, sheet = "Times")
+  
+  # Create the output CSV file name
+  file_name <- tools::file_path_sans_ext(basename(file))
+  output_file <- file.path(output_dir, paste0(file_name, ".csv"))
+  
+  # Write to CSV
+  write.csv(df, output_file, row.names = FALSE)
+  
+  # Print progress
+  cat("Converted:", basename(file), "\n")
+}
+
+
+
+#### Step 2: Remove unrelated rows ####
+
+# Set input and output directories
+input_dir <- "M:/times-csv"
+output_dir <- "M:/times-rremoved"
+
+# List all CSV files
+csv_files <- list.files(path = input_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Loop over each CSV file
+for (file in csv_files) {
+  
+  # Read the CSV file
+  df <- read.csv(file)
+  names(df) <- NULL
+
+  # Remove specific rows by index (e.g., rows 1-17 and 19-22)
+  df_rremoved <- df[-c(1:16, 18:21), -c(2:4)]
+  
+  # Create an output file name
+  # output_file <- file.path(path = output_dir, file)
+  file_name <- tools::file_path_sans_ext(basename(file))
+  output_file <- file.path(output_dir, paste0(file_name, "_rrm", ".csv"))
+  
+  # Save the cleaned DataFrame
+  write.csv(df_rremoved, output_file, row.names = FALSE)
+  
+  # Print progress
+  cat("Processed:", file, "\n")
+}
+
+
+
+#### Step 3a: Rename files for participant IDs ####
+
+# Set source and destination directories
+source_dir <- "M:/times-rremoved"
+dest_dir <- "M:/times-renamed"
+
+# List files in the source directory
+files <- list.files(source_dir, full.names = TRUE)
+
+# Loop through each file
+for (file in files) {
+  # Extract base file name and extension
+  base <- basename(file)
+  name_no_ext <- tools::file_path_sans_ext(base)
+  ext <- tools::file_ext(base)
+  
+  # Truncate to first 6 characters; this is the month of data
+  truncated_name <- substr(name_no_ext, 1, 6)
+  
+  # Combine to create new file name
+  new_filename <- paste0(truncated_name, ".", ext)
+  new_path <- file.path(dest_dir, new_filename)
+  
+  # Copy the file with the new name
+  file.copy(from = file, to = new_path)
+  
+  cat("Copied:", base, "->", new_filename, "\n")
+}
+
+
+
+#### Step 3b: Add participant IDs ####
+
+# Set directory to make code more readable
+source_dir <- "M:/times-renamed"
+new_dir <- "M:/times-add-id"
+
+# List all CSV files
+files <- list.files(path = source_dir, pattern = "\\.csv$", full.names = TRUE)
+
+# Loop over each CSV file
+for (file in files) {
+  
+  # Extract base file name and remove extension
+  base <- basename(file)
+  name_no_ext <- tools::file_path_sans_ext(base)
+  
+  # Read the CSV file
+  df <- read.csv(file)
+  
+  for (i in nrow(df)){
+    df[,1] <- paste0(name_no_ext, df[,1])
+  }
+  output_file <- file.path(new_dir)
+  write.csv(df, file=paste0(new_dir,base), row.names = FALSE)
+}
+
+
+
+#### Step 4: Concatenating all .csv files into one big df ####
+
+# Set directory 
+source_dir <- "M:/times-add-id"
+
+# List all files
+files <- list.files(path = source_dir, pattern = "\\.csv$", full.names = TRUE)
+
+big_df <- data.frame()
+
+# Loop over each CSV file
+for (file in files) {
+  # Read csv file
+  df <- read.csv(file)
+  
+  # Make all elements into strings
+  df <- as.data.frame(sapply(df, as.character), stringsAsFactors = FALSE)
+  
+  # Concatenate dataframe
+  big_df <- bind_rows(big_df, df)
+}
+
+# Rename first column
+names(big_df)[1] <- "id"
+
+# Write to .csv
+write.csv(big_df, "all-times.csv", row.names = FALSE)
+
+```
+
+### 6. Using reaction times as filter to remove invalid responses
+
+* Now, with all the times concatenated into a large dataframe, the following steps were applied:
+
+
+    1. Sum row vectors in the all-Binary dataframe to find the total number of correct responses for each respondent
+    2. Sum all the values in the all-Times dataframe to find total reaction time
+    3. Divide (2) with (1) to find the average reaction time to each correct response
+    4. Values below a certain threshold will be used to filter out the responses
+
+* The code was first tested with a toy example before applied to the actual data
+
+```{r rt-filter, eval=FALSE}
+
+#### 1. Testing using toy dataframe ####
+
+# Generate dataframes with ids
+
+# RT dataframe
+df_randa <- randu
+
+# Binary dataframe
+a <- sample(x = c(0,1), size = 400, replace = TRUE)
+b <- sample(x = c(0,1), size = 400, replace = TRUE)
+c <- sample(x = c(0,1), size = 400, replace = TRUE)
+
+df_randbin <- as.data.frame(cbind(a,b,c))
+
+# Create "participant" ids
+id <- data.frame(matrix(ncol = , nrow = 400))
+
+for (i in 1:400){
+    id[i,1] <- paste0(i, collapse="", sep="")
+}    
+
+colnames(id) <- "participants"
+
+df_randa$participants <- id$participants
+df_randbin$participants <- id$participants
+
+
+# This is the "filtered" binary dataframe for removing "invalid responses"
+df_filtered <- df_randbin[101:300,1:4]
+
+
+# Next, to concatenate the two dataframes
+df_combined <- dplyr::inner_join(df_randa, df_filtered, by="participants")
+df_splita <- df_combined[1:3]
+df_splitb <- df_combined[5:7]
+
+# Create empty column
+df_combined$dot <- NA
+
+
+# Dot product of row vectors
+for(j in 1:200){
+  dot_product <- sum(df_splita[j,]*df_splitb[j,])
+  df_combined[j,8] <- dot_product
+}
+
+# Calculate the sum of each row to obtain mean reaction time for each correct answer
+df_combined$correctcount <- rowSums(df_splitb)
+
+# Calculate mean RT per correct answer
+df_combined$meanRT <- df_combined$dot / df_combined$correctcount
+
+# Plot distributions of mean RT
+hist(df_combined$meanRT)
+boxplot(df_combined$meanRT)
+# The toy example worked, so the steps are repeated with actual data
+
+
+
+#### 2. Obtaining average reaction time per correct answer for response ####
+
+# Load dataframe for both all-times and all-binary
+df_binary <- read.csv("M:/all_binary.csv")
+df_times <- read.csv("M:/all_times.csv")
+
+# Calculate dot product for each pair of row vectors
+df_binary_rvectors <- df_binary[3:8151]
+df_times_rvectors <- df_times[2:8150]
+
+# Replace all NAs with 0 for dot product operation
+df_binary_rvectors[is.na(df_binary_rvectors)] <- 0
+df_times_rvectors[is.na(df_times_rvectors)] <- 0
+
+# Create empty dataframe for inputting dot products
+df_dot_products <- data.frame(matrix(nrow=45965))
+df_dot_products[,1] <- df_binary[,1]
+
+# Fill empty dataframe with dot products
+for(i in 1:45965){
+  dot_product <- sum(df_binary_rvectors[i,]*df_times_rvectors[i,])
+  df_dot_products[i,2] <- dot_product
+}
+
+# Calculate the count of correct answers in each row to obtain mean RT
+df_dot_products$correctcount <- rowSums(df_binary_rvectors)
+
+# Calculate mean RT per correct answer
+df_dot_products$meanRT <- df_dot_products[,2]/df_dot_products[,3]
+
+# Export the list of mean RT by participants
+write.csv(df_dot_products, "rt_by_id.csv", row.names=FALSE)
+write.csv(df_binary_rvectors, "binary_rvectors.csv", row.names=FALSE)
+write.csv(df_times_rvectors, "times_rvectors.csv", row.names=FALSE)
+
+# Note that the dataframe contains all N = 45965 responses, including the ones that are invalid
+
+
+
+#### 3. Next, obtain a description on of the distribution of RTs
+
+# Get description of the distribution of RT
+# Load dataframes
+df<- read.csv("M:/rt_by_id.csv")
+df_non_jp <- read.csv("M:/non_JP_answers.csv")
+
+# List of non-JP responses
+df_non_jp_id <- as.data.frame(df_non_jp$id)
+df_non_jp_id$is_jp <- 0
+names(df_non_jp_id)[1] <- "id"
+
+
+# Removing non-JP reaction times
+df_all_rt <- dplyr::right_join(df_non_jp_id, df, by="id")
+df_all_rt$is_jp[is.na(df_all_rt$is_jp)] <- 1
+
+# Check the number of JP respondents
+sum(df_all_rt$is_jp)
+# N = 45073; number checks out
+
+# Create new dataframe for only JP
+df_only_jp <- df_all_rt[df_all_rt$is_jp != 0, ]
+
+# Export dataframes
+write.csv(df_all_rt, "all_rt.csv", row.names=FALSE)
+write.csv(df_only_jp, "only_jp_rt.csv", row.names=FALSE)
+
+```
+
+Here are the descriptive statistics and plots for reaction times for all responses graded as "correct", including both valid and invalid observations:
+
+```{r rt-descriptive, warning=FALSE, eval=TRUE}
+
+# Load dataframe
+df_only_jp <- read.csv("M:/only_jp_rt.csv")
+
+# Distribution of reaction times for JP responses
+summary(df_only_jp$meanRT)
+boxplot(df_only_jp$meanRT, main = "Boxplot of mean RT per logged session for correct responses")
+hist(df_only_jp$meanRT, main = "Histogram of mean RT for correct responses", xlab = "Mean RTs per logged session (before filtering)")
+
+```
+
+In order to reduce potential noise from invalid responses such as overly long RTs from cheating and impossibly short RTs due to system testing, only responses that have an average of between 3s and 14s are kept.
+
+
+```{r remove-extreme-rt, eval=FALSE}
+
+# Load dataframe
+df_only_jp <- read.csv("M:/only_jp_rt.csv")
+# N = 45073
+
+# Filter for reaction times falling between 3s and 14s
+df_only_jp_filtered <- df_only_jp %>%
+  dplyr::filter(between(meanRT, 3, 14))
+
+# Export dataframe
+write.csv(df_only_jp_filtered, "only_jp_rt_filtered.csv", row.names=FALSE)
+
+```
+
+Here are the updated descriptive plots of the filtered RTs.
+
+```{r description-filtered-rt, warning=FALSE, eval=TRUE}
+# Load dataframe
+df_only_jp_filtered <- read.csv("M:/only_jp_rt_filtered.csv")
+
+# Distribution of reaction times for JP responses
+boxplot(df_only_jp_filtered$meanRT, main = "Boxplot of mean RT per logged session for correct responses")
+hist(df_only_jp_filtered$meanRT, main = "Histogram of mean RT for correct responses", xlab = "Mean RTs per logged session (after filtering)")
+
+# summary(df_only_jp_filtered$meanRT)
+# sd(df_only_jp_filtered$meanRT)
+
+```
+
+Below is the descriptive stats for average reaction time per logged session for test item rated as "correct".
+
+```
+|  Min RT  | 1st Qu. |  Median RT  |   Mean RT  |   SD   | 3rd Qu. |  Max RT  |
+|----------|---------|-------------|------------|--------|---------|----------|
+|  3.000   |  4.867  |    5.983    |    6.467   |  2.182 |  7.590  |  14.000  |
+
+```
+
+Using this information, a list of invalid logged session are extracted and used to remove all invalid responses in the "Binary" dataframe. Thus, the updated "Binary" dataframe now only contains valid responses that contain reaction times between 3 and 14 seconds for correct answers.
+
+```{r binary-rt-filter, eval=FALSE}
+
+# Load dataframes 
+df_binary <- read.csv("M:/all_binary_atleast1.csv") 
+# df_binary was already previously filtered for known foreign id, NA-only columns and rows
+
+df_only_jp_filtered <- read.csv("M:/only_jp_rt_filtered.csv")
+# Now, to use this list of ids based on JP-script and RT to further clean up binary dataframe
+
+df_binary_rt_jp <- dplyr::inner_join(df_binary, df_only_jp_filtered, by="id")
+# N = 42754; this is less than the observations in df_only_jp_filtered (N = 42917), indicating that the earlier filter was able to remove observations that would not otherwise have been removed if only RT and JP-script was used
+
+# Export this RT and JP-script filtered dataframe
+write.csv(df_binary_rt_jp, "binary_3_to_14_sec.csv", row.names=FALSE)
+
+
+# There are two-word test items not part of this study that I didn't notice earlier; it'll probably be faster to get the item IDs in the filtered dataframe and then compare this with any one of the spreadsheets for a list of any two-word items that might still be left after
+
+```
+
+
+### 7. Removing test items with very few responses
+
+* Thus far, the filtering is aimed at removing invalid responses (aka logged sessions or row vectors)
+* This Step 7 is aimed at getting an idea on the amount of "missingness" per test item by looking at the number of responses each test item received 
+* This will help with the decision on how much more further filtering is necessary to remove test items with insufficient responses
+
+```{r visualise-missingness, warning=FALSE, out.width="90%"}
+
+# Load dataframes
+data <- read.csv("M:/binary_3_to_14_sec.csv")
+df <- data[1:8009]
+
+# Count missingness
+df_missingness <- df[,-1]
+
+# Count missingness
+missingness <- colSums(is.na(df_missingness))
+
+# Summary table
+summary(missingness)
+
+# Histogram
+hist_missingness <- hist(missingness, ylim = c(0,4200))
+text(x = hist_missingness$mids, y = hist_missingness$counts, labels = hist_missingness$counts, pos = 3, col = "black", cex = 0.8)
+
+# Boxplot
+box_missingness <- boxplot(missingness, main = "Boxplot of missingness", horizontal = TRUE)
+quartiles <- as.integer(round(box_missingness$stats[,1],2))
+text(x = quartiles, y = c(1.05, 1.25, 1.25), labels = quartiles, pos = 3, col = "black", cex = 0.5)
+
+```
+
+<p>
+#### Observations:
+
+* Minimum no. of missing observations is 40348; i.e., max no. of observations an item has is 42754-40348 = 2406 responses
+* Median no. of missing observations is 42601; i.e., median no. of observations an item has is 42754-42601 = 153 responses
+* This means filtering out data with less than 153 responses will cut the number of test items in roughly half to around 3500 to 4000 items
+</p>
+
+Thus, taking reference from KVL, items with less than 120 responses were removed:
+
+```{r count-per-item-responses, eval=FALSE}
+
+# Load dataframes and transpose for removing items
+data <- read.csv("E:/binary_3_to_14_sec.csv")
+df <- data[2:8009]
+
+transpose_headings <- as.data.frame(colnames(df))
+names(transpose_headings)[1] <- "item_id"
+
+# Replace all NAs with 0 to speed up the process
+df[is.na(df)] <- 0
+
+# Transpose the dataframe; found out the hard way this is the better option
+df_t <- as.data.frame(t(df))
+df_items <- cbind(transpose_headings, df_t)
+
+# Count the number of responses per test item
+df_items$responsecounts <- rowSums(df_t[,2:42754])
+
+# Export this information!
+write.csv(df_items, "all_item_response_counts.csv", row.names=FALSE)
+
+# Duplicate dataframe
+df_t120 <- df_items
+
+# Remove items with less than 120 responses
+df_t120 <- df_t120[df_t120$responsecounts >= 120, ]
+# Note that I can't use this dataframe to compute cosine similarity directly since all NAs are replaced with 0
+
+# Export this dataframe
+write.csv(df_t120, "item_w_120responses.csv", row.names=FALSE)
+```
+
+Below displays a description of the distribution of responses per item.
+* Note that removing items with less than 120 responses has cut the total number of test items to k = 3013
+
+```{r filtered-items-summary, warning=FALSE, eval=TRUE}
+
+# Load dataframe
+df_t120 <- read.csv("M:/item_w_120responses.csv")
+
+# Now, to check out the distribution of responses per item
+summary(df_t120$responsecounts)
+hist(df_t120$responsecounts)
+boxplot(df_t120$responsecounts)
+
+```
+<p>
+
+### 8. Potential issue with repeat individuals
+
+* Notes:
+
+
+    + Usually, multiple responses from the same individual could be considered as "harmless" to IRT models, especially if test-takers respond to different test items that are randomized at each logged session 
+    + However, if the same individual does the exact same test at each repetition, this could violate assumptions of observational independence and lead to model overfitting
+    + While this model overfitting is unlikely to be an issue, it is better to test what its implications are prior to applying IRT modelling, and see if it is possible or necessary to try accounting for it to reduce potential estimate inaccuracies
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
